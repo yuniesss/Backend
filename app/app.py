@@ -1,5 +1,6 @@
 from flask import Flask
 from flask import request
+from flask import jsonify
 import os
 
 app = Flask(__name__)
@@ -18,7 +19,7 @@ def validate_user(user_id, password, filename):
                 # 检查行是否非空
                 if line:
                     # 分割用户id和密码
-                    stored_id, stored_password = line.split('：')
+                    stored_id, stored_password = line.split(':')
                     # 检查输入的用户id和密码是否匹配
                     if stored_id == user_id and stored_password == password:
                         return True
@@ -35,33 +36,45 @@ def login():
     data = request.get_json()
     #这里渲染登录页面
     #处理post数据
-    #
+    user_id = data['userid']
+    user_password = data['userpassword']
+    filename = "c:/Users/dell/Desktop/项目/app/user.txt"
+    with open(filename,'r') as file:
+        for line in file:
+            print(line.strip())
 
-    input_id = data[id]
-    input_password = data[password]
-    filename = "user.txt"
-    if validate_user(input_id, input_password, filename):
-        return "验证成功！"
+    if validate_user(user_id, user_password, filename):
+        return jsonify({"login": 1})
     else:
-        return "验证失败：用户ID或密码错误。"
+        return jsonify({"login": -1})
     
     #return 登录成功
 
-@app.route('/signup')
+@app.route('/signup',method = ['POST'])
 def signup():
-    user_id = "your_user_id"
-    user_password = "your_password"
+    data = request.get_json()
+    user_id = data['userid']
+    user_password = data['userpassword']
 
     # 指定文件名
-    file_name = "user.txt"
+    file_name = "c:/Users/dell/Desktop/项目/app/user.txt"
 
     # 打开文件，并追加内容
     with open(file_name, "a") as file:
         # 写入user_id和user_password，用冒号分隔，然后换行
         file.write(f"{user_id}: {user_password}\n")
-    return "成功！"
+    return jsonify({"signup": 1})
+
+@app.route('/search')#需要您的研究
+def search():
+    return
+
+@app.route('/mainmenu')
+def mainmenu():
+    return
+    
 
 
-if __name__ == '__main__':
 
+if __name__ == '__main__':       
     app.run()
