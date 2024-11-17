@@ -1,9 +1,10 @@
 from flask import Flask
+from app import app
+import os
 from flask import request
 from flask import jsonify
-import os
+from flask_sqlalchemy import SQLAlchemy
 
-app = Flask(__name__)
 
 @app.route('/')
 def home():
@@ -31,10 +32,9 @@ def validate_user(user_id, password, filename):
         print(f"发生错误：{e}")
         return False
 
-@app.route('/login',methods = ['POST'] )
+@app.route('/api/login',methods = ['POST'] )
 def login():
     data = request.get_json()
-    #这里渲染登录页面
     #处理post数据
     user_id = data['userid']
     user_password = data['userpassword']
@@ -50,7 +50,7 @@ def login():
     
     #return 登录成功
 
-@app.route('/signup',method = ['POST'])
+@app.route('/api/signup',method = ['POST'])
 def signup():
     data = request.get_json()
     user_id = data['userid']
@@ -62,8 +62,21 @@ def signup():
     # 打开文件，并追加内容
     with open(file_name, "a") as file:
         # 写入user_id和user_password，用冒号分隔，然后换行
-        file.write(f"{user_id}: {user_password}\n")
+        file.write(f"{user_id}:{user_password}\n")
     return jsonify({"signup": 1})
+
+@app.route('/api/show',method = ['GET'])
+def show():
+    id = request.args.get('id')
+    if id == None :
+        #此处应该有一个方法
+        #调数据库
+        #返回一个json表单
+        print('no id')
+    else :
+        #同上
+        print('id = ????') 
+    return
 
 @app.route('/search')#需要您的研究
 def search():
@@ -72,8 +85,6 @@ def search():
 @app.route('/mainmenu')
 def mainmenu():
     return
-    
-
 
 
 if __name__ == '__main__':       
