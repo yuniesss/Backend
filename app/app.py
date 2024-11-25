@@ -165,7 +165,104 @@ def confirm():
 def trial():
     return "hello world"
 
+@app.route('/api/pushlist', methods=['POST']) # 【待访问数据库】用户登录后首页给他推送10个问题
+def push_list():
+    data = request.get_json()
+    user_id = data.get('userid')  # userid的用处？实现精确推送？？
+    questions_list = random.sample(list(questions_db.keys()), 10)  # 先从数据库里随机选取10个吧
+    return jsonify({'question_ids': questions_list})
 
+def check_user_interactions(question_id, user_id): # 【待访问数据库】判断用户对该问题的交互情况：是否点赞/收藏过
+    # 从数据库调用，先模拟一个
+    is_liked = True
+    is_favorited = False
+    return is_liked, is_favorited
+
+# 【待访问数据库】 问题数据库（模拟一个）
+questions_db = {
+    '00001': {
+        'id': '00001',
+        'title': 'Is cachelab difficult?',
+        'content': 'A little.',
+        'like': 0,
+        'favorite': 0
+    },
+    '00002': {
+        'id': '00002',
+        'title': 'Is tshlab difficult?',
+        'content': 'Have some.',
+        'like': 10,
+        'favorite': 1
+    },
+    '00003': {
+        'id': '00003',
+        'title': 'Is malloclab difficult?',
+        'content': 'Very difficult!',
+        'like': 100,
+        'favorite': 10
+    }
+}
+@app.route('/api/getQuestion', methods=['POST']) # 查询问题，返回问题条目
+def get_question():
+    data = request.get_json()
+    question_id = data.get('questionid')
+    user_id = data.get('userid')
+
+    if question_id in questions_db:
+        question_data = questions_db[question_id]
+        is_liked, is_favorited = check_user_interactions(question_id, user_id)
+
+        response = {
+            'id': question_data['id'],
+            'title': question_data['title'],
+            'content': question_data['content'],
+            'like': question_data['like'],
+            'favorite': question_data['favorite'],
+            'isliked': is_liked,
+            'isfavorited': is_favorited
+        }
+        return jsonify(response)
+    else:
+        return jsonify({'error': 'Question not found'}), 404
+
+# 【待访问数据库】 问题的回答数据库（模拟一个）
+answers_db = {
+    '00003': [
+        {'answer_id': 'a001', 'content': '暂时不能'},
+        {'answer_id': 'a002', 'content': '给你明确的'},
+        {'answer_id': 'a003', 'content': '答复'}
+    ]
+}
+
+questions_list = ['123456', '234567', '345678', '456789', '567890', '678901', '789012', '890123', '901234', '012345']
+
+@app.route('/api/getAnswer', methods=['POST']) # 查询问题对应的回答，返回回答列表
+def get_answer():
+    data = request.get_json()
+    question_id = data.get('questionid')
+
+    if question_id in answers_db:
+        answers = answers_db[question_id]
+        return jsonify(answers)
+    else:
+        return jsonify({'error': 'No answers found for this question'}), 404
+
+@app.route('/api/get', methods=['POST']) # 查询回答，返回回答条目
+def get_answer_detail():
+    data = request.get_json()
+    question_id = data.get('questionid')
+    answer_id = data.get('answerid')
+    # 检查问题ID是否存在
+    if question_id in answers_db:
+        # 在问题的回答中查找指定的回答 ID
+        for answer in answers_db[question_id]:
+            if answer['answer_id'] == answer_id:
+                return jsonify(answer)
+        return jsonify({'error': 'Answer ID not found in the provided Question ID'}), 404
+    else:
+        return jsonify({'error': 'Question ID not found'}), 404
+
+###########################################################################################
 
 
 @app.route('/api/show',methods = ['GET'])
