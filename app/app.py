@@ -11,9 +11,84 @@ import smtplib
 from email.mime.text import MIMEText
 # email 用于构建邮件内容
 from email.header import Header
+#数据库相关
+from config import settings
+from datetime import datetime
+from werkzeug.security import generate_password_hash, check_password_hash
+
 
 
 app = Flask(__name__)
+app.config.from_object('config.settings')
+db = SQLAlchemy(app)
+
+
+
+
+
+
+
+# 问题表
+class Question(db.Model):
+    __tablename__ = 'questions'
+
+    id = db.Column(db.Integer, primary_key=True)  # 问题ID
+    title = db.Column(db.String(255), nullable=False)  # 问题标题
+    body = db.Column(db.Text, nullable=False)  # 问题内容
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)  # 提问时间
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)  # 提问者的ID
+
+
+    # 与回答表的关系：一个问题可以有多个回答
+    answers = db.relationship('Answer', backref='question', lazy=True)
+
+    def __repr__(self):
+        return f"<Question(id={self.id}, title={self.title}, created_at={self.created_at})>"
+
+
+
+# 回答表
+class Answer(db.Model):
+    __tablename__ = 'answers'
+
+    id = db.Column(db.Integer, primary_key=True)  # 回答ID
+    body = db.Column(db.Text, nullable=False)  # 回答内容
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)  # 回答时间
+    question_id = db.Column(db.Integer, db.ForeignKey('questions.id'), nullable=False)  # 所属问题ID
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)  # 回答者的ID
+    
+
+    def __repr__(self):
+        return f"<Answer(id={self.id}, question_id={self.question_id}, created_at={self.created_at})>"
+# 用户表
+class User(db.Model):
+    __tablename__ = 'users'
+
+    id = db.Column(db.Integer, primary_key=True)  # 用户ID
+    username = db.Column(db.String(80), unique=True, nullable=False)  # 用户名
+    email = db.Column(db.String(120), unique=True, nullable=False)  # 邮箱
+    password_hash = db.Column(db.String(256), nullable=False)  # 密码哈希
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)  # 注册时间
+    
+    # 与 Question 表的关系：一个用户可以提多个问题
+    questions = db.relationship('Question', backref='author', lazy=True)
+
+    # 与 Answer 表的关系：一个用户可以回答多个问题
+    answers = db.relationship('Answer', backref='author', lazy=True)
+
+    def set_password(self, password):
+        """ 设置密码的哈希值 """
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password):
+        """ 检查密码是否匹配 """
+        return check_password_hash(self.password_hash, password)
+
+    def __repr__(self):
+        return f"<User(id={self.id}, username={self.username}, email={self.email})>"
+
+
+
 
 def mail(email):
     # 发信方的信息
@@ -58,94 +133,112 @@ def mail(email):
 
     return random_number_str
     
-def home():
-    return '点击登录页面'
 
-def validate_user(user_id, password, filename):
-    # 尝试打开文件并逐行读取
-    try:
-        with open(filename, 'r') as file:
-            for line in file:
-                # 去除每行的首尾空白字符
-                line = line.strip()
-                # 检查行是否非空
-                if line:
-                    # 分割用户id和密码
-                    stored_id, stored_password = line.split(':')
-                    # 检查输入的用户id和密码是否匹配
-                    if stored_id == user_id and stored_password == password:
-                        return True
-        return False
-    except FileNotFoundError:
-        print(f"错误：文件 {filename} 未找到。")
-        return False
-    except Exception as e:
-        print(f"发生错误：{e}")
-        return False
-
+@app.route('/api/getusername',methods = ['POST'] )
+def getusername():
+    data = request.get_json()
+    email = data['userid']
+    user_password = data['userpassword']
+    existing_user = User.query.filter_by(email=email).first()
+    if existing_user.check_password(user_password):
+        return jsonify(
+            {
+            "info":"查询成功",
+            "code":200,
+            "username":  existing_user.username
+            })
+    else:
+        return jsonify(
+            {
+            "info":"查询失败",
+            "code":400,
+            "username": '',
+            
+            })
+@app.route('/api/changeusername',methods = ['POST'] )
+def changeusername():
+    data = request.get_json()
+    username=data['username']
+    email = data['userid']
+    user_password = data['userpassword']
+    existing_user = User.query.filter_by(email=email).first()
+    if existing_user.check_password(user_password):
+        existing_user.username=username
+        db.session.commit()
+        return jsonify(
+            {
+            "info":"修改成功",
+            "code":200,
+            "username": username,
+            })
+    else:
+        return jsonify(
+            {
+            "info":"修改失败",
+            "code":400,
+            "username": username,
+            
+            })
 @app.route('/api/login',methods = ['POST'] )
 def login():
     data = request.get_json()
     #处理post数据
-    user_id = data['userid']
+    email = data['email']
     user_password = data['userpassword']
-    filename = "./user.txt"
-    with open(filename,'r') as file:
-        for line in file:
-            print(line.strip())
+    
 
-    if validate_user(user_id, user_password, filename):
+    existing_user = User.query.filter_by(email=email).first()
+    
+    if existing_user.check_password(user_password):
         return jsonify({"login": 1})
     else:
         return jsonify({"login": -1})
-    
-    #return 登录成功
-
-
 
 @app.route('/api/signup',methods = ['POST'])
 def signup():
     data = request.get_json()
-    given_id = data['userid']
+    email = data['userid']
     user_password = data['userpassword']
     given_verification_string = data['emailcheckcode']
-    # 读取和处理文件
-    input_filename = "C:/Users/dell/Desktop/项目/app/confirm.txt"
-    output_filename = "C:/Users/dell/Desktop/项目/app/confirm.txt"
-    # 读取文件并处理每一行
-    flag = 0
-    data_lines = []
-    with open(input_filename, 'r') as file:
-        for line in file:
-            line = line.strip()
-            if line:  # 确保不处理空行
-                id, verification_string, timestamp_str = line.split(',')
-                timestamp = datetime.strptime(timestamp_str, "%Y-%m-%d %H:%M:%S")
-                # 检查ID和验证码
-                current_time = datetime.now()
-                if current_time - timestamp < timedelta(minutes=3):
-                    data_lines.append(line)
-                    if id == given_id and verification_string == given_verification_string:
-                        flag = 1
-
-    # 将未删除的行写回文件
-    with open(output_filename, 'w') as file:
-        for line in data_lines:
-            file.write(line + '\n')
-
-    if flag == 1:
-        file_name = "C:/Users/dell/Desktop/项目/app/user.txt"
-        # 打开文件，并追加内容
-        with open(file_name, "a") as file:
-            # 写入user_id和user_password，用冒号分隔，然后换行
-            file.write(f"\n{given_id}:{user_password}")
-        return jsonify({"signup": 1})
-    else:
-        return jsonify({"signup":-1})
     
-    # 指定文件名
-    
+    existing_user = User.query.filter_by(email=email).first()
+    if existing_user:
+        return jsonify({
+            "code":400,
+            "signup": -1,
+            })
+        
+    new_user = User (
+        username=email,
+        email=email,
+        password_hash=user_password,
+    )
 
+    # 设置密码哈希
+    new_user.set_password(new_user.password_hash)
+
+    # 添加新用户到数据库会话
+    db.session.add(new_user)
+
+    # 提交会话以保存到数据库
+    try:
+        db.session.commit()
+        return jsonify({
+            "info":"注册成功",
+            "code":200,
+            "signup": 1,
+            })
+    except IntegrityError:
+        db.session.rollback()
+        return jsonify({
+            "info":"插入失败，可能有重复",
+            "code":400,
+            "signup": -1,
+            })
+    except Exception as e:
+        db.session.rollback()
+        return f'数据库错误: {str(e)}', 500
+    
 @app.route('/api/confirm',methods = ['POST'])
 def confirm():
     data = request.get_json()
@@ -156,7 +249,7 @@ def confirm():
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     content = f"{given_id},{verification_string},{timestamp}\n"
     # 写入文件
-    with open("C:/Users/dell/Desktop/项目/app/confirm.txt", 'a') as file:
+    with open("./hou/Backend/app/confirm.txt", 'a') as file:
         file.write(content)
 
     return jsonify({"confirm":1})
@@ -165,12 +258,98 @@ def confirm():
 def trial():
     return "hello world"
 
+@app.route('/api/createquestion', methods=['POST'])
+def createquestion():
+    data = request.get_json()
+    title=data['title']
+    body=data['body']
+    email=data['email']
+    existing_user = User.query.filter_by(email=email).first()
+    new_q = Question (
+        title=title,
+        body=body,
+        user_id=existing_user.id
+    )
+    db.session.add(new_q)
+    db.session.commit()
+    return jsonify({
+        "code":200,
+        }
+        )
 @app.route('/api/pushlist', methods=['POST']) # 【待访问数据库】用户登录后首页给他推送10个问题
 def push_list():
     data = request.get_json()
-    user_id = data.get('userid')  # userid的用处？实现精确推送？？
-    questions_list = random.sample(list(questions_db.keys()), 10)  # 先从数据库里随机选取10个吧
-    return jsonify({'question_ids': questions_list})
+    questions = Question.query.order_by(Question.created_at.desc()).limit(10).all()
+    latest_questions_list = [{'id': q.id, 'title': q.title, 'body': q.body, 'created_at': q.created_at} for q in questions]
+    return jsonify({
+        "code":200,
+        "list":latest_questions_list,
+        }
+        )
+@app.route('/api/getquestion', methods=['POST'])
+def getquestion():
+    data = request.get_json()
+    question_id = data.get('questionid')
+    q= Question.query.filter_by(id=question_id).first()
+    question={'id': q.id, 'title': q.title, 'body': q.body, 'created_at': q.created_at}
+    return jsonify({
+        "code":200,
+        "question":question,
+        }
+        )
+@app.route('/api/getuserquestion', methods=['POST'])
+def getuserquestion():
+    data = request.get_json()
+    email = data.get('email')
+    existing_user = User.query.filter_by(email=email).first()
+    
+    questions_list = [{
+        'id': q.id,
+        'title': q.title,
+        'body': q.body,
+        'created_at': q.created_at.isoformat()
+    } for q in existing_user.questions]
+    
+    return jsonify({
+        "code":200,
+        "questions":questions_list,
+        }
+        )
+
+@app.route('/api/createanswer', methods=['POST'])
+def createanswer():
+    data = request.get_json()
+    body=data['body']
+    email=data['email']
+    questionid=data['questionid']
+    existing_user = User.query.filter_by(email=email).first()
+    new_a = Answer (
+        body=body,
+        user_id=existing_user.id,
+        question_id=questionid
+    )
+    db.session.add(new_a)
+    db.session.commit()
+    return jsonify({
+        "code":200,
+        }
+        )
+
+@app.route('/api/getanswer', methods=['POST'])
+def getanswer():
+    data = request.get_json()
+    question_id = data.get('questionid')
+    question= Question.query.get(question_id)
+    
+    if question is None:
+        return jsonify({"code": 404, "message": "Question not found"})
+    answers_list = [{'id': a.id, 'body': a.body, 'created_at': a.created_at,'author': a.author.username,"likes":0} for a in question.answers]
+    print(answers_list)
+    return jsonify({
+        "code":200,
+        "answers": answers_list
+        }
+        )
 
 def check_user_interactions(question_id, user_id): # 【待访问数据库】判断用户对该问题的交互情况：是否点赞/收藏过
     # 从数据库调用，先模拟一个
@@ -178,63 +357,8 @@ def check_user_interactions(question_id, user_id): # 【待访问数据库】判
     is_favorited = False
     return is_liked, is_favorited
 
-# 【待访问数据库】 问题数据库（模拟一个）
-questions_db = {
-    '00001': {
-        'id': '00001',
-        'title': 'Is cachelab difficult?',
-        'content': 'A little.',
-        'like': 0,
-        'favorite': 0
-    },
-    '00002': {
-        'id': '00002',
-        'title': 'Is tshlab difficult?',
-        'content': 'Have some.',
-        'like': 10,
-        'favorite': 1
-    },
-    '00003': {
-        'id': '00003',
-        'title': 'Is malloclab difficult?',
-        'content': 'Very difficult!',
-        'like': 100,
-        'favorite': 10
-    }
-}
-@app.route('/api/getQuestion', methods=['POST']) # 查询问题，返回问题条目
-def get_question():
-    data = request.get_json()
-    question_id = data.get('questionid')
-    user_id = data.get('userid')
 
-    if question_id in questions_db:
-        question_data = questions_db[question_id]
-        is_liked, is_favorited = check_user_interactions(question_id, user_id)
 
-        response = {
-            'id': question_data['id'],
-            'title': question_data['title'],
-            'content': question_data['content'],
-            'like': question_data['like'],
-            'favorite': question_data['favorite'],
-            'isliked': is_liked,
-            'isfavorited': is_favorited
-        }
-        return jsonify(response)
-    else:
-        return jsonify({'error': 'Question not found'}), 404
-
-# 【待访问数据库】 问题的回答数据库（模拟一个）
-answers_db = {
-    '00003': [
-        {'answer_id': 'a001', 'content': '暂时不能'},
-        {'answer_id': 'a002', 'content': '给你明确的'},
-        {'answer_id': 'a003', 'content': '答复'}
-    ]
-}
-
-questions_list = ['123456', '234567', '345678', '456789', '567890', '678901', '789012', '890123', '901234', '012345']
 
 @app.route('/api/getAnswer', methods=['POST']) # 查询问题对应的回答，返回回答列表
 def get_answer():
@@ -278,15 +402,9 @@ def show():
         print('id = ????') 
     return
 
-@app.route('/search')#需要您的研究
-def search():
-    return
-
-@app.route('/mainmenu')
-def mainmenu():
-    return
-
+with app.app_context():
+    db.create_all()
 
 if __name__ == '__main__':       
     app.run()
-    
+

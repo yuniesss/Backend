@@ -10,7 +10,7 @@ class DevConfig(Config):
     # 开发环境配置
     DEBUG = True
     # 配置数据库连接 URI
-    SQLALCHEMY_DATABASE_URI = 'mysql+pymysql://root:password@localhost:3306/team_qna_platform' 
+    SQLALCHEMY_DATABASE_URI = 'mysql+pymysql://root:3697818@localhost:3306/team_qna_platform' 
 
     #notice！！！！ 根据实际需要把上面的root改成你的数据库的用户名 password改为实际的密码
     

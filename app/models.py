@@ -51,7 +51,7 @@ class Team(db.Model):
 
 # 团队成员关系表（多对多）
 class TeamMembership(db.Model):
-    __tablename__ = 'team_members'
+    __tablename__ = 'team_membership'
 
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), primary_key=True)  # 用户ID
     team_id = db.Column(db.Integer, db.ForeignKey('teams.id'), primary_key=True)  # 团队ID
