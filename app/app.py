@@ -11,10 +11,24 @@ import smtplib
 from email.mime.text import MIMEText
 # email 用于构建邮件内容
 from email.header import Header
-
+from flask_sqlalchemy import SQLAlchemy
 
 app = Flask(__name__)
+app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://root:123456@localhost:3306/team_qna_platform'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
+# 初始化 db
+db = SQLAlchemy(app)
+
+
+class User(db.Model):
+    __tablename__ = 'users'
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(100), unique=True, nullable=False)
+    password_hash = db.Column(db.String(255), nullable=False)  # 密码字段
+
+    def __repr__(self):
+        return f'<User {self.username}>'
 def mail(email):
     # 发信方的信息
     from_addr = 'jingxiao_cao@126.com' # 发信信箱
@@ -85,21 +99,20 @@ def validate_user(user_id, password, filename):
 
 @app.route('/api/login',methods = ['POST'] )
 def login():
+    
     data = request.get_json()
     #处理post数据
     user_id = data['userid']
     user_password = data['userpassword']
-    filename = "./user.txt"
-    with open(filename,'r') as file:
-        for line in file:
-            print(line.strip())
+     # 查询数据库验证用户
+    user = User.query.filter_by(id=user_id).first()
 
-    if validate_user(user_id, user_password, filename):
-        return jsonify({"login": 1})
+    # 如果用户存在且密码匹配
+    if user and user.password_hash == user_password:
+        return jsonify({"login": 1})  # 登录成功
     else:
-        return jsonify({"login": -1})
-    
-    #return 登录成功
+        return jsonify({"login": -1})  # 登录失败
+
 
 
 
