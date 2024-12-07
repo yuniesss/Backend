@@ -11,10 +11,15 @@ import smtplib
 from email.mime.text import MIMEText
 # email 用于构建邮件内容
 from email.header import Header
+#数据库相关
+from config import settings
+from datetime import datetime
+from werkzeug.security import generate_password_hash, check_password_hash
 
+from app_init import app,db
+from models import User,Team,TeamMembership,Question,Answer,QuestionLike,AnswerLike
 
-app = Flask(__name__)
-
+# 为注册用户发送邮箱验证码
 def mail(email):
     # 发信方的信息
     from_addr = 'jingxiao_cao@126.com' # 发信信箱
@@ -58,94 +63,117 @@ def mail(email):
 
     return random_number_str
     
-def home():
-    return '点击登录页面'
+# 查询用户是否注册
+@app.route('/api/getusername',methods = ['POST'] )
+def getusername():
+    data = request.get_json()
+    email = data['userid']
+    user_password = data['userpassword']
+    existing_user = User.query.filter_by(email=email).first()
 
-def validate_user(user_id, password, filename):
-    # 尝试打开文件并逐行读取
-    try:
-        with open(filename, 'r') as file:
-            for line in file:
-                # 去除每行的首尾空白字符
-                line = line.strip()
-                # 检查行是否非空
-                if line:
-                    # 分割用户id和密码
-                    stored_id, stored_password = line.split(':')
-                    # 检查输入的用户id和密码是否匹配
-                    if stored_id == user_id and stored_password == password:
-                        return True
-        return False
-    except FileNotFoundError:
-        print(f"错误：文件 {filename} 未找到。")
-        return False
-    except Exception as e:
-        print(f"发生错误：{e}")
-        return False
+    if existing_user.check_password(user_password):
+        return jsonify(
+            {
+            "info":"查询成功",
+            "code":200,
+            "username":  existing_user.username
+            })
+    else:
+        return jsonify(
+            {
+            "info":"查询失败",
+            "code":400,
+            "username": '',
+            })
 
+# 修改用户名
+@app.route('/api/changeusername',methods = ['POST'] )
+def changeusername():
+    data = request.get_json()
+    username=data['username']
+    email = data['userid']
+    user_password = data['userpassword']
+    existing_user = User.query.filter_by(email=email).first()
+
+    if existing_user.check_password(user_password):
+        existing_user.username=username
+        db.session.commit()
+        return jsonify(
+            {
+            "info":"修改成功",
+            "code":200,
+            "username": username,
+            })
+    else:
+        return jsonify(
+            {
+            "info":"修改失败",
+            "code":400,
+            "username": username,
+            
+            })
+
+# 登录
 @app.route('/api/login',methods = ['POST'] )
 def login():
     data = request.get_json()
     #处理post数据
-    user_id = data['userid']
+    email = data['email']
     user_password = data['userpassword']
-    filename = "./user.txt"
-    with open(filename,'r') as file:
-        for line in file:
-            print(line.strip())
-
-    if validate_user(user_id, user_password, filename):
+    existing_user = User.query.filter_by(email=email).first()
+    
+    if existing_user.check_password(user_password):
         return jsonify({"login": 1})
     else:
         return jsonify({"login": -1})
-    
-    #return 登录成功
 
-
-
+# 注册
 @app.route('/api/signup',methods = ['POST'])
 def signup():
     data = request.get_json()
-    given_id = data['userid']
+    email = data['userid']
     user_password = data['userpassword']
     given_verification_string = data['emailcheckcode']
-    # 读取和处理文件
-    input_filename = "C:/Users/dell/Desktop/项目/app/confirm.txt"
-    output_filename = "C:/Users/dell/Desktop/项目/app/confirm.txt"
-    # 读取文件并处理每一行
-    flag = 0
-    data_lines = []
-    with open(input_filename, 'r') as file:
-        for line in file:
-            line = line.strip()
-            if line:  # 确保不处理空行
-                id, verification_string, timestamp_str = line.split(',')
-                timestamp = datetime.strptime(timestamp_str, "%Y-%m-%d %H:%M:%S")
-                # 检查ID和验证码
-                current_time = datetime.now()
-                if current_time - timestamp < timedelta(minutes=3):
-                    data_lines.append(line)
-                    if id == given_id and verification_string == given_verification_string:
-                        flag = 1
-
-    # 将未删除的行写回文件
-    with open(output_filename, 'w') as file:
-        for line in data_lines:
-            file.write(line + '\n')
-
-    if flag == 1:
-        file_name = "C:/Users/dell/Desktop/项目/app/user.txt"
-        # 打开文件，并追加内容
-        with open(file_name, "a") as file:
-            # 写入user_id和user_password，用冒号分隔，然后换行
-            file.write(f"\n{given_id}:{user_password}")
-        return jsonify({"signup": 1})
-    else:
-        return jsonify({"signup":-1})
     
-    # 指定文件名
-    
+    existing_user = User.query.filter_by(email=email).first()
+    if existing_user:
+        return jsonify({
+            "info": "该邮箱已注册",
+            "code":400,
+            "signup": -1,
+            })
+        
+    new_user = User (
+        username=email,
+        email=email,
+        password_hash=user_password,
+    )
 
+    # 设置密码哈希
+    new_user.set_password(new_user.password_hash)
+
+    # 添加新用户到数据库会话
+    db.session.add(new_user)
+
+    # 提交会话以保存到数据库
+    try:
+        db.session.commit()
+        return jsonify({
+            "info":"注册成功",
+            "code":200,
+            "signup": 1,
+            })
+    except IntegrityError:
+        db.session.rollback()
+        return jsonify({
+            "info":"插入失败，可能有重复",
+            "code":400,
+            "signup": -1,
+            })
+    except Exception as e:
+        db.session.rollback()
+        return f'数据库错误: {str(e)}', 500
+    
 @app.route('/api/confirm',methods = ['POST'])
 def confirm():
     data = request.get_json()
@@ -156,137 +184,194 @@ def confirm():
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     content = f"{given_id},{verification_string},{timestamp}\n"
     # 写入文件
-    with open("C:/Users/dell/Desktop/项目/app/confirm.txt", 'a') as file:
+    with open("./hou/Backend/app/confirm.txt", 'a') as file:
         file.write(content)
 
     return jsonify({"confirm":1})
 
-@app.route('/')
-def trial():
-    return "hello world"
 
-@app.route('/api/pushlist', methods=['POST']) # 【待访问数据库】用户登录后首页给他推送10个问题
+# 创建问题
+@app.route('/api/createquestion', methods=['POST'])
+def createquestion():
+    data = request.get_json()
+    title=data['title']
+    body=data['body']
+    email=data['email']
+    existing_user = User.query.filter_by(email=email).first()
+
+    new_q = Question (
+        title=title,
+        body=body,
+        user_id=existing_user.id
+    )
+
+    db.session.add(new_q)
+    db.session.commit()
+
+    return jsonify({
+        "code":200,
+        }
+        )
+
+# 用户登录后推送
+@app.route('/api/pushlist', methods=['POST'])
 def push_list():
     data = request.get_json()
-    user_id = data.get('userid')  # userid的用处？实现精确推送？？
-    questions_list = random.sample(list(questions_db.keys()), 10)  # 先从数据库里随机选取10个吧
-    return jsonify({'question_ids': questions_list})
+    questions = Question.query.order_by(Question.created_at.desc()).limit(10).all()
 
-def check_user_interactions(question_id, user_id): # 【待访问数据库】判断用户对该问题的交互情况：是否点赞/收藏过
-    # 从数据库调用，先模拟一个
-    is_liked = True
-    is_favorited = False
-    return is_liked, is_favorited
+    latest_questions_list = [{'id': q.id,
+                              'title': q.title,
+                              'body': q.body,
+                              'created_at': q.created_at
+                              } for q in questions]
 
-# 【待访问数据库】 问题数据库（模拟一个）
-questions_db = {
-    '00001': {
-        'id': '00001',
-        'title': 'Is cachelab difficult?',
-        'content': 'A little.',
-        'like': 0,
-        'favorite': 0
-    },
-    '00002': {
-        'id': '00002',
-        'title': 'Is tshlab difficult?',
-        'content': 'Have some.',
-        'like': 10,
-        'favorite': 1
-    },
-    '00003': {
-        'id': '00003',
-        'title': 'Is malloclab difficult?',
-        'content': 'Very difficult!',
-        'like': 100,
-        'favorite': 10
-    }
-}
-@app.route('/api/getQuestion', methods=['POST']) # 查询问题，返回问题条目
-def get_question():
-    data = request.get_json()
-    question_id = data.get('questionid')
-    user_id = data.get('userid')
-
-    if question_id in questions_db:
-        question_data = questions_db[question_id]
-        is_liked, is_favorited = check_user_interactions(question_id, user_id)
-
-        response = {
-            'id': question_data['id'],
-            'title': question_data['title'],
-            'content': question_data['content'],
-            'like': question_data['like'],
-            'favorite': question_data['favorite'],
-            'isliked': is_liked,
-            'isfavorited': is_favorited
+    return jsonify({
+        "code":200,
+        "list":latest_questions_list,
         }
-        return jsonify(response)
-    else:
-        return jsonify({'error': 'Question not found'}), 404
+        )
 
-# 【待访问数据库】 问题的回答数据库（模拟一个）
-answers_db = {
-    '00003': [
-        {'answer_id': 'a001', 'content': '暂时不能'},
-        {'answer_id': 'a002', 'content': '给你明确的'},
-        {'answer_id': 'a003', 'content': '答复'}
-    ]
-}
-
-questions_list = ['123456', '234567', '345678', '456789', '567890', '678901', '789012', '890123', '901234', '012345']
-
-@app.route('/api/getAnswer', methods=['POST']) # 查询问题对应的回答，返回回答列表
-def get_answer():
+# 获取问题详情
+@app.route('/api/getquestion', methods=['POST'])
+def getquestion():
     data = request.get_json()
     question_id = data.get('questionid')
+    q= Question.query.filter_by(id=question_id).first()
 
-    if question_id in answers_db:
-        answers = answers_db[question_id]
-        return jsonify(answers)
-    else:
-        return jsonify({'error': 'No answers found for this question'}), 404
+    question={'id': q.id,
+              'title': q.title,
+              'body': q.body,
+              'created_at': q.created_at,
+              'likes': q.likes.count()
+              }
 
-@app.route('/api/get', methods=['POST']) # 查询回答，返回回答条目
-def get_answer_detail():
+    return jsonify({
+        "code":200,
+        "question":question,
+        }
+        )
+
+# 查询用户所有问题
+@app.route('/api/getuserquestion', methods=['POST'])
+def getuserquestion():
+    data = request.get_json()
+    email = data.get('email')
+    existing_user = User.query.filter_by(email=email).first()
+    
+    questions_list = [{
+        'id': q.id,
+        'title': q.title,
+        'body': q.body,
+        'created_at': q.created_at.isoformat(),
+        'likes': q.likes.count()
+    } for q in existing_user.questions]
+    
+    return jsonify({
+        "code":200,
+        "questions":questions_list,
+        }
+        )
+
+# 创建回答
+@app.route('/api/createanswer', methods=['POST'])
+def createanswer():
+    data = request.get_json()
+    body=data['body']
+    email=data['email']
+    questionid=data['questionid']
+    existing_user = User.query.filter_by(email=email).first()
+
+    new_a = Answer (
+        body=body,
+        user_id=existing_user.id,
+        question_id=questionid
+    )
+    db.session.add(new_a)
+    db.session.commit()
+
+    return jsonify({
+        "code":200,
+        }
+        )
+
+# 查询问题的所有回答
+@app.route('/api/getanswer', methods=['POST'])
+def getanswer():
     data = request.get_json()
     question_id = data.get('questionid')
-    answer_id = data.get('answerid')
-    # 检查问题ID是否存在
-    if question_id in answers_db:
-        # 在问题的回答中查找指定的回答 ID
-        for answer in answers_db[question_id]:
-            if answer['answer_id'] == answer_id:
-                return jsonify(answer)
-        return jsonify({'error': 'Answer ID not found in the provided Question ID'}), 404
-    else:
-        return jsonify({'error': 'Question ID not found'}), 404
+    question= Question.query.get(question_id)
+    
+    if question is None:
+        return jsonify({"code": 404, "message": "Question not found"})
 
-###########################################################################################
+    answers_list = [{
+        'id': a.id,
+        'body': a.body,
+        'created_at': a.created_at,
+        'author': a.author.username,
+        "likes": a.likes.count()
+    } for a in question.answers]
+
+    print(answers_list)
+    return jsonify({
+        "code":200,
+        "answers": answers_list
+        }
+        )
 
 
-@app.route('/api/show',methods = ['GET'])
-def show():
-    id = request.args.get('id')
-    if id == None :
-        #此处应该有一个方法
-        #调数据库
-        #返回一个json表单
-        print('no id')
-    else :
-        #同上
-        print('id = ????') 
-    return
+# 对问题点赞
+@app.route('/api/likequestion', methods=['POST'])
+def like_question():
+    # 前端返回用户email，问题id
+    data = request.get_json()
+    question_id = data['question_id']
+    email = data['email']
 
-@app.route('/search')#需要您的研究
-def search():
-    return
+    user = User.query.filter_by(email=email).first() # 查找用户，核实是否为合法用户
+    if not user:
+        return jsonify({"code": 404, "message": "User not found"})
 
-@app.route('/mainmenu')
-def mainmenu():
-    return
+    question = Question.query.get(question_id) # 查找问题，核实问题是否存在
+    if not question:
+        return jsonify({"code": 404, "message": "Question not found"})
 
+    existing_like = QuestionLike.query.filter_by(user_id=user.id, question_id=question_id).first() # 该用户是否已对该问题点赞
+    if existing_like:
+        return jsonify({"code": 400, "message": "Already liked"})
+
+    like = QuestionLike(user_id=user.id, question_id=question_id) # 创建新点赞
+    db.session.add(like) # 将新点赞对象添加到会话中
+    db.session.commit() # 提交事务，将更改保存到数据库
+
+    return jsonify({"code": 200, "message": "Liked successfully"})
+
+# 对回答点赞
+@app.route('/api/likeanswer', methods=['POST'])
+def like_answer():
+    # 前端返回用户email，回答id
+    data = request.get_json()
+    answer_id = data['answer_id']
+    email = data['email']
+
+    user = User.query.filter_by(email=email).first()
+    if not user:
+        return jsonify({"code": 404, "message": "User not found"})
+
+    answer = Answer.query.get(answer_id)
+    if not answer:
+        return jsonify({"code": 404, "message": "Answer not found"})
+
+    existing_like = AnswerLike.query.filter_by(user_id=user.id, answer_id=answer_id).first()
+    if existing_like:
+        return jsonify({"code": 400, "message": "Already liked"})
+
+    like = AnswerLike(user_id=user.id, answer_id=answer_id)
+    db.session.add(like)
+    db.session.commit()
+
+    return jsonify({"code": 200, "message": "Liked successfully"})
 
 if __name__ == '__main__':       
     app.run()
-    
+
