@@ -81,3 +81,38 @@ class Answers(db.Model):
 
     def __repr__(self):
         return f"<Answers(id={self.id}, question_id={self.question_id}, created_at={self.created_at})>"
+
+
+#评论表
+class Comment(db.Model):
+    __tablename__ = 'comments'
+
+    id = db.Column(db.Integer, primary_key=True)  # 评论ID
+    content_type = db.Column(db.Enum('question', 'answer', name='content_type_enum'), nullable=False)  # 评论内容类型
+    content_id = db.Column(db.Integer, nullable=False)  # 评论的内容ID
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)  # 评论的用户ID
+    body = db.Column(db.Text, nullable=False)  # 评论内容
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)  # 评论时间
+
+    # 与用户表的关系
+    author = db.relationship('User', backref=db.backref('comments', lazy=True))
+
+    def __repr__(self):
+        return f'<Comment {self.id} on {self.content_type} {self.content_id}>'
+    
+
+#点赞表
+class Vote(db.Model):
+    __tablename__ = 'votes'
+
+    id = db.Column(db.Integer, primary_key=True)  # 投票ID
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)  # 投票的用户ID
+    content_type = db.Column(db.Enum('question', 'answer', name='content_type_enum'), nullable=False)  # 投票内容类型
+    content_id = db.Column(db.Integer, nullable=False)  # 投票的内容ID
+    vote_type = db.Column(db.Enum('upvote', 'downvote', name='vote_type_enum'), nullable=False)  # 投票类型（点赞还是点踩）
+
+    # 与用户表的关系
+    voter = db.relationship('User', backref=db.backref('votes', lazy=True))
+
+    def __repr__(self):
+        return f'<Vote {self.vote_type} on {self.content_type} {self.content_id}>'

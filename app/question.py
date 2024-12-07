@@ -103,3 +103,35 @@ def getanswer():
         "answers": answers_list
         }
         )
+
+#搜索功能，返回的是关键词模糊查询的问题列表
+@question.route('/api/searchquestions', methods=['POST'])
+def searchquestions():
+    # 获取请求中的搜索关键词
+    data = request.get_json()
+    query = data.get('query', '')  # 搜索关键词，默认为空字符串
+
+    # 如果没有提供查询关键词，则返回所有问题
+    if query:
+        # 使用 LIKE 进行模糊查询，查找所有问题的标题和内容中包含关键词的内容
+        questions = Questions.query.filter(
+            (Questions.title.ilike(f'%{query}%')) | 
+            (Questions.body.ilike(f'%{query}%'))
+        ).all()
+    else:
+        questions = Questions.query.all()  # 如果没有查询关键词，返回所有问题
+
+    # 构造问题列表
+    questions_list = [{
+        'id': q.id,
+        'title': q.title,
+        'body': q.body,
+        'created_at': q.created_at.strftime('%Y-%m-%d %H:%M:%S'),  # 格式化时间
+        'author': q.author.username,  # 提问者用户名
+    } for q in questions]
+
+    # 返回搜索结果
+    return jsonify({
+        "code": 200,
+        "questions": questions_list
+    }), 200

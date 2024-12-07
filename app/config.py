@@ -29,7 +29,7 @@ class ProConfig(Config):
     # 生产环境配置
     DEBUG = False
     # 配置数据库连接 URI
-    SQLALCHEMY_DATABASE_URI = 'mysql+pymysql://root:password@localhost:3306/team_qna_platform'
+    SQLALCHEMY_DATABASE_URI = 'mysql+pymysql://root:123456@localhost:3306/team_qna_platform'
     
     # 生产环境的一些配置
     CACHE_TYPE = "redis"  # 使用 Redis 缓存
