@@ -1,9 +1,9 @@
 from datetime import datetime
-from app import db
 from werkzeug.security import generate_password_hash, check_password_hash
+from app_init import db
 
 # 用户表
-class User(db.Model):
+class User(db.Model): # 所有模型类需要继承自 db.Model
     __tablename__ = 'users'
 
     id = db.Column(db.Integer, primary_key=True)  # 用户ID
@@ -18,9 +18,14 @@ class User(db.Model):
     # 与 Question 表的关系：一个用户可以提多个问题
     questions = db.relationship('Question', backref='author', lazy=True)
 
+    # 与 QuestionLike 表的关系：一个用户可以对多个问题点赞
+    questionlikes = db.relationship('QuestionLike', backref='liker', lazy=True)
+
     # 与 Answer 表的关系：一个用户可以回答多个问题
     answers = db.relationship('Answer', backref='author', lazy=True)
 
+    # 与 AnswerLike 表的关系：一个用户可以对多个回答点赞
+    answerlikes = db.relationship('AnswerLike', backref='liker', lazy=True)
     def set_password(self, password):
         """ 设置密码的哈希值 """
         self.password_hash = generate_password_hash(password)
@@ -51,7 +56,7 @@ class Team(db.Model):
 
 # 团队成员关系表（多对多）
 class TeamMembership(db.Model):
-    __tablename__ = 'team_members'
+    __tablename__ = 'team_membership'
 
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), primary_key=True)  # 用户ID
     team_id = db.Column(db.Integer, db.ForeignKey('teams.id'), primary_key=True)  # 团队ID
@@ -80,6 +85,9 @@ class Question(db.Model):
     # 与回答表的关系：一个问题可以有多个回答
     answers = db.relationship('Answer', backref='question', lazy=True)
 
+    # 与 QuestionLike 表的关系：一个问题可以有多个点赞
+    likes = db.relationship('QuestionLike', backref='question', lazy=True)
+
     def __repr__(self):
         return f"<Question(id={self.id}, title={self.title}, created_at={self.created_at})>"
 
@@ -100,5 +108,38 @@ class Answer(db.Model):
     # 通过关系与用户表关联
     author = db.relationship('User', backref=db.backref('answers', lazy=True))
 
+    # 与 AnswerLike 表的关系：一个问题可以有多个点赞
+    likes = db.relationship('AnswerLike', backref='answer', lazy=True)
+
     def __repr__(self):
         return f"<Answer(id={self.id}, question_id={self.question_id}, created_at={self.created_at})>"
+
+# 点赞表（问题）
+class QuestionLike(db.Model):
+    id = db.Column(db.Integer, primary_key=True) # 点赞ID
+    question_id = db.Column(db.Integer, db.ForeignKey('question.id'), nullable=False) # 问题ID
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False) # 点赞者的ID
+
+    # 通过关系与用户表关联
+    liker = db.relationship('User', backref=db.backref('questionlikes', lazy=True))
+
+    # 通过关系与问题表关联
+    question = db.relationship('Question', backref=db.backref('likes', lazy=True))
+
+    def __repr__(self):
+        return f"<QuestionLike(id={self.id}, question_id={self.question_id}, user_id={self.user_id})>"
+
+# 点赞表（回答）
+class AnswerLike(db.Model):
+    id = db.Column(db.Integer, primary_key=True) # 点赞ID
+    answer_id = db.Column(db.Integer, db.ForeignKey('answer.id'), nullable=False) # 回答ID
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False) # 点赞者的ID
+
+    # 通过关系与用户表关联
+    liker = db.relationship('User', backref=db.backref('answerlikes', lazy=True))
+
+    # 通过关系与回答表关联
+    answer = db.relationship('Answer', backref=db.backref('likes', lazy=True))
+
+    def __repr__(self):
+        return f"<AnswerLike(id={self.id}, answer_id={self.answer_id}, user_id={self.user_id})>"
