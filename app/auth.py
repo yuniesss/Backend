@@ -1,19 +1,21 @@
-from flask import Flask
-from datetime import datetime, timedelta
+#################################
+#login 也要重写
+#用户注册登录功能
+#其中signup和confirm和数据库的交互需要重写
+#################################
+
 import random
-import os
-#from app import creat_app
-from flask import request
-from flask import jsonify
-from flask_sqlalchemy import SQLAlchemy
-# smtplib 用于邮件的发信动作
 import smtplib
+
 from email.mime.text import MIMEText
-# email 用于构建邮件内容
 from email.header import Header
+from flask import Blueprint,request,jsonify
+from datetime import datetime, timedelta
+
+from app.models import Users
 
 
-app = Flask(__name__)
+auth = Blueprint('auth',__name__)
 
 def mail(email):
     # 发信方的信息
@@ -57,61 +59,30 @@ def mail(email):
     server.quit()
 
     return random_number_str
-    
-def home():
-    return '点击登录页面'
 
-def validate_user(user_id, password, filename):
-    # 尝试打开文件并逐行读取
-    try:
-        with open(filename, 'r') as file:
-            for line in file:
-                # 去除每行的首尾空白字符
-                line = line.strip()
-                # 检查行是否非空
-                if line:
-                    # 分割用户id和密码
-                    stored_id, stored_password = line.split(':')
-                    # 检查输入的用户id和密码是否匹配
-                    if stored_id == user_id and stored_password == password:
-                        return True
-        return False
-    except FileNotFoundError:
-        print(f"错误：文件 {filename} 未找到。")
-        return False
-    except Exception as e:
-        print(f"发生错误：{e}")
-        return False
 
-@app.route('/api/login',methods = ['POST'] )
+@auth.route('/api/login',methods = ['POST'] )
 def login():
     data = request.get_json()
     #处理post数据
-    user_id = data['userid']
-    user_password = data['userpassword']
-    filename = "./user.txt"
-    with open(filename,'r') as file:
-        for line in file:
-            print(line.strip())
-
-    if validate_user(user_id, user_password, filename):
-        return jsonify({"login": 1})
+    user_email = data['user_email']
+    user_password = data['user_password']
+    user_id = Users.login(user_email, user_password)
+    if user_id is not None:
+        return jsonify({"message": "message","user_id":2333})
     else:
-        return jsonify({"login": -1})
+        return jsonify({'error': 'Invalid email or password'}), 401
     
-    #return 登录成功
 
-
-
-@app.route('/api/signup',methods = ['POST'])
+@auth.route('/api/signup',methods = ['POST'])
 def signup():
     data = request.get_json()
     given_id = data['userid']
     user_password = data['userpassword']
     given_verification_string = data['emailcheckcode']
     # 读取和处理文件
-    input_filename = "C:/Users/dell/Desktop/项目/app/confirm.txt"
-    output_filename = "C:/Users/dell/Desktop/项目/app/confirm.txt"
+    input_filename = "C:/Users/dell/Desktop/test/app/confirm.txt"
+    output_filename = "C:/Users/dell/Desktop/test/app/confirm.txt"
     # 读取文件并处理每一行
     flag = 0
     data_lines = []
@@ -134,7 +105,7 @@ def signup():
             file.write(line + '\n')
 
     if flag == 1:
-        file_name = "C:/Users/dell/Desktop/项目/app/user.txt"
+        file_name = "C:/Users/dell/Desktop/test/app/user.txt"
         # 打开文件，并追加内容
         with open(file_name, "a") as file:
             # 写入user_id和user_password，用冒号分隔，然后换行
@@ -146,7 +117,7 @@ def signup():
     # 指定文件名
     
 
-@app.route('/api/confirm',methods = ['POST'])
+@auth.route('/api/confirm',methods = ['POST'])
 def confirm():
     data = request.get_json()
     given_id = data['userid']
@@ -156,40 +127,9 @@ def confirm():
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     content = f"{given_id},{verification_string},{timestamp}\n"
     # 写入文件
-    with open("C:/Users/dell/Desktop/项目/app/confirm.txt", 'a') as file:
+    with open("C:/Users/dell/Desktop/test/app/confirm.txt", 'a') as file:
         file.write(content)
 
     return jsonify({"confirm":1})
 
-@app.route('/')
-def trial():
-    return "hello world"
 
-
-
-
-@app.route('/api/show',methods = ['GET'])
-def show():
-    id = request.args.get('id')
-    if id == None :
-        #此处应该有一个方法
-        #调数据库
-        #返回一个json表单
-        print('no id')
-    else :
-        #同上
-        print('id = ????') 
-    return
-
-@app.route('/search')#需要您的研究
-def search():
-    return
-
-@app.route('/mainmenu')
-def mainmenu():
-    return
-
-
-if __name__ == '__main__':       
-    app.run()
-    

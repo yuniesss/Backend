@@ -1,3 +1,10 @@
+#################################
+#配置文件
+#把DevConfig类中 SQLALCHEMY_DATABASE_URI 改为您本地的数据库URI
+#################################
+
+
+
 import os
 
 class Config(object):
@@ -10,7 +17,7 @@ class DevConfig(Config):
     # 开发环境配置
     DEBUG = True
     # 配置数据库连接 URI
-    SQLALCHEMY_DATABASE_URI = 'mysql+pymysql://root:3697818@localhost:3306/team_qna_platform' 
+    SQLALCHEMY_DATABASE_URI = 'mysql+pymysql://root:123456@localhost:3306/mydatabase' 
 
     #notice！！！！ 根据实际需要把上面的root改成你的数据库的用户名 password改为实际的密码
     
@@ -22,7 +29,7 @@ class ProConfig(Config):
     # 生产环境配置
     DEBUG = False
     # 配置数据库连接 URI
-    SQLALCHEMY_DATABASE_URI = 'mysql+pymysql://root:password@localhost:3306/team_qna_platform'
+    SQLALCHEMY_DATABASE_URI = 'mysql+pymysql://root:123456@localhost:3306/team_qna_platform'
     
     # 生产环境的一些配置
     CACHE_TYPE = "redis"  # 使用 Redis 缓存
