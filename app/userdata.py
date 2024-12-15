@@ -7,6 +7,7 @@ from flask import Blueprint,request,jsonify
 
 from app.models import Users
 from . import db
+from datetime import datetime
 
 
 userdata = Blueprint('userdata',__name__)
@@ -39,24 +40,23 @@ def changeusername():
     username=data['username']
     email = data['userid']
     user_password = data['userpassword']
-    with userdata.app_context():
-        existing_user = Users.query.filter_by(email=email).first()
-        if existing_user.check_password(user_password):
-            existing_user.username=username
-            db.session.commit()
-            return jsonify(
-                {
-                    "info":"修改成功",
-                    "code":200,
-                    "username": username,
-                })
-        else:
-            return jsonify(
-                {
-                    "info":"修改失败",
-                    "code":400,
-                    "username": username,
-                })
+    existing_user = Users.query.filter_by(email=email).first()
+    if existing_user.check_password(user_password):
+        existing_user.username=username
+        db.session.commit()
+        return jsonify(
+            {
+                "info":"修改成功",
+                "code":200,
+                "username": username,
+            })
+    else:
+        return jsonify(
+            {
+                "info":"修改失败",
+                "code":400,
+                "username": username,
+            })
         
 
 #获取用户发布的问题列表
@@ -69,7 +69,7 @@ def getuserquestionlist():
         'id': q.id,
         'title': q.title,
         'body': q.body,
-        'created_at': q.created_at.isoformat()
+        'created_at': q.created_at.isoformat(sep=' ')
     } for q in existing_user.questions]
     
     return jsonify({

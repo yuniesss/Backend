@@ -7,18 +7,23 @@
 from datetime import datetime
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
+from datetime import timezone
+from datetime import timedelta
 
 from .db import db
 # 用户表
-
+SHA_TZ = timezone(
+    timedelta(hours=8),
+    name='Asia/Shanghai',
+)
 class Users(db.Model):
     __tablename__ = 'users'
 
     id = db.Column(db.Integer, primary_key=True)  # 用户ID
     username = db.Column(db.String(80), unique=True, nullable=False)  # 用户名
     email = db.Column(db.String(120), unique=True, nullable=False)  # 邮箱
-    password_hash = db.Column(db.String(5), nullable=False)  # 密码哈希
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)  # 注册时间
+    password_hash = db.Column(db.String(256), nullable=False)  # 密码哈希
+    created_at = db.Column(db.DateTime, default=datetime.today().astimezone(SHA_TZ))  # 注册时间
 
 
     def set_password(self, password):
@@ -53,9 +58,9 @@ class Questions(db.Model):
     id = db.Column(db.Integer, primary_key=True)  # 问题ID
     title = db.Column(db.String(255), nullable=False)  # 问题标题
     body = db.Column(db.Text, nullable=False)  # 问题内容
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)  # 提问时间
+    created_at = db.Column(db.DateTime, default=datetime.today().astimezone(SHA_TZ))  # 提问时间
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)  # 提问者的ID
-
+    likes=db.Column(db.Integer, nullable=False,default=0)
     # 通过关系与用户表关联
     author = db.relationship('Users', backref=db.backref('questions', lazy=True))
 
@@ -72,9 +77,10 @@ class Answers(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)  # 回答ID
     body = db.Column(db.Text, nullable=False)  # 回答内容
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)  # 回答时间
+    created_at = db.Column(db.DateTime, default=datetime.today().astimezone(SHA_TZ))  # 回答时间
     question_id = db.Column(db.Integer, db.ForeignKey('questions.id'), nullable=False)  # 所属问题ID
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)  # 回答者的ID
+    likes=db.Column(db.Integer, nullable=False,default=0)
 
     # 通过关系与用户表关联
     author = db.relationship('Users', backref=db.backref('answers', lazy=True))
@@ -92,7 +98,7 @@ class Comment(db.Model):
     content_id = db.Column(db.Integer, nullable=False)  # 评论的内容ID
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)  # 评论的用户ID
     body = db.Column(db.Text, nullable=False)  # 评论内容
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)  # 评论时间
+    created_at = db.Column(db.DateTime, default=datetime.today().astimezone(SHA_TZ))  # 评论时间
 
     # 与用户表的关系
     author = db.relationship('Users', backref=db.backref('comments', lazy=True))
