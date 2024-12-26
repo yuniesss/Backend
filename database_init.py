@@ -6,14 +6,11 @@ app = create_app()
 
 with app.app_context():
     # 删除所有用户数据（可选，取决于你是否想要清空数据）
-    db.session.query(Users).delete()
     db.session.commit()
-
     # 创建新用户
     users = [
-        Users(username='john', email='john@example.com'),
-        Users(username='jane', email='jane@example.com'),
-        Users(username='xsy', email='879766866@qq.com')
+
+        Users(username='alxy', email='2200013196@stu.pku.edu.cn'),       
     ]
 
     # 添加用户到数据库

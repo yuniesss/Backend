@@ -9,7 +9,7 @@ from datetime import timezone
 from datetime import timedelta
 from datetime import datetime
 from .db import db
-
+from sqlalchemy import Column, JSON, Integer, String
 # 设定时区
 SHA_TZ = timezone(
     timedelta(hours=8),
@@ -60,7 +60,9 @@ class Questions(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.today().astimezone(SHA_TZ))  # 提问时间
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)  # 提问者的ID
     likes=db.Column(db.Integer, nullable=False,default=0)
-
+    tags = db.Column(String, default='[]')
+    course_type =db.Column(db.String(255))
+    
     # 通过关系与用户表关联
     author = db.relationship('Users', backref=db.backref('questions', lazy=True))
     # 与回答表的关系：一个问题可以有多个回答
@@ -143,7 +145,7 @@ class Favorite(db.Model):
 class Team(db.Model):
     __tablename__ = 'teams'
 
-    id = db.Column(db.Integer, primary_key=True, autoincrement=True) # 组队ID
+    id = db.Column(db.Integer, primary_key=True) # 组队ID
     title = db.Column(db.String(100), nullable=False)  # 标题，限制100个字符
     description = db.Column(db.Text, nullable=False)   # 描述
     total_members = db.Column(db.Integer, nullable=False)  # 总人数
@@ -151,10 +153,15 @@ class Team(db.Model):
     expiration_date = db.Column(db.DateTime, nullable=False)  # 有效期
     created_at = db.Column(db.DateTime, default=datetime.today().astimezone(SHA_TZ))  # 创建时间
     members = db.Column(db.Text, default='[]')  # 使用JSON字符串存储用户ID列表
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)  # 发起者的ID
 
+    # 通过关系与用户表关联
+    author = db.relationship('Users', backref=db.backref('teams', lazy=True))
     def is_expired(self):
         """ 检查组队是否过期 """
-        return datetime.now().astimezone(SHA_TZ) > self.expiration_date # 用世界标准时间计时，不随系统时区变化
+        print(self.expiration_date)
+        print(datetime.now())
+        return datetime.now() > self.expiration_date # 用世界标准时间计时，不随系统时区变化
 
     def add_member(self, user_id):
         """ 添加成员到组队 """

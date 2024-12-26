@@ -9,6 +9,8 @@ from .db import db
 from app.auth import auth
 from app.userdata import userdata
 from app.question import question
+from app.team import team
+
 from app.config import DevConfig
 
 def create_app():
@@ -19,6 +21,7 @@ def create_app():
     app.register_blueprint(auth)
     app.register_blueprint(userdata)
     app.register_blueprint(question)
+    app.register_blueprint(team)
 
     
     with app.app_context(): 

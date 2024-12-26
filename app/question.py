@@ -5,19 +5,15 @@
 #################################
 
 from flask import request,Blueprint,jsonify
+from datetime import datetime
 from datetime import timezone
 from datetime import timedelta
-from datetime import datetime
-
-from .models import Questions,Answers,Users,Vote,Favorite,Team
+from .models import Questions,Answers,Users,Vote,Favorite
 from .db import db
-
-# 设定时区
 SHA_TZ = timezone(
     timedelta(hours=8),
     name='Asia/Shanghai',
 )
-
 question = Blueprint('question',__name__)
 
 
@@ -41,11 +37,16 @@ def createquestion():
     title=data['title']
     body=data['body']
     email=data['email']
+    tags=data['tags']
+    course_type=data['courseType']
     existing_user = Users.query.filter_by(email=email).first()
     new_q = Questions (
         title=title,
         body=body,
-        user_id=existing_user.id
+        user_id=existing_user.id,
+        created_at=datetime.now().astimezone(SHA_TZ),
+        tags=','.join(tags),
+        course_type=course_type,
     )
     db.session.add(new_q)
     db.session.commit()
@@ -66,7 +67,9 @@ def createanswer():
     new_a = Answers (
         body=body,
         user_id=existing_user.id,
-        question_id=questionid
+        question_id=questionid,
+        created_at=datetime.now().astimezone(SHA_TZ)
+
     )
     db.session.add(new_a)
     db.session.commit()
@@ -137,7 +140,11 @@ def getquestion():
     ).first()
     if existing_vote:
         isLiked=1
-        
+    tags=[]
+    if q.tags:
+        tags=q.tags.split(',')
+        tags.insert(0, q.course_type)
+
     isFavorited=0
     existing_favorite = Favorite.query.filter_by(
         user_id = user.id,
@@ -150,11 +157,12 @@ def getquestion():
             isFavorited=1
         
     question={'id': q.id, 'title': q.title, 'body': q.body, 'likes':q.likes,'isLiked':isLiked,'isFavorited':isFavorited,
-              'created_at':  q.created_at,'creater':q.author.username}
+              'created_at':  q.created_at,'creater':q.author.username,}
     
     return jsonify({
         "code":200,
         "question":question,
+        "tags":tags
         }
         )
 
@@ -189,17 +197,28 @@ def searchquestions():
     # 获取请求中的搜索关键词
     data = request.get_json()
     query = data.get('content', '')  # 搜索关键词，默认为空字符串
-
-    # 如果没有提供查询关键词，则返回所有问题
-    if query:
-        # 使用 LIKE 进行模糊查询，查找所有问题的标题和内容中包含关键词的内容
-        questions = Questions.query.filter(
-            (Questions.title.ilike(f'%{query}%')) | 
-            (Questions.body.ilike(f'%{query}%'))
-        ).all()
-    else:
-        questions = Questions.query.all()  # 如果没有查询关键词，返回所有问题
-
+    searchType=data.get('searchType', 'content')
+    if searchType=='content':
+        # 如果没有提供查询关键词，则返回所有问题
+        if query:
+            # 使用 LIKE 进行模糊查询，查找所有问题的标题和内容中包含关键词的内容
+            questions = Questions.query.filter(
+                (Questions.title.ilike(f'%{query}%')) | 
+                (Questions.body.ilike(f'%{query}%'))
+            ).all()
+        else:
+            questions = Questions.query.all()  # 如果没有查询关键词，返回所有问题
+    elif searchType=='id':
+        if query:
+            questions = Questions.query.filter_by(
+               id =query
+            ).all()
+    elif searchType=='tags':
+        if query:
+            print(query)
+            questions = Questions.query.filter(
+                (Questions.tags.ilike(f'%{query}%')) 
+            ).all()
     # 构造问题列表
     questions_list = [{
         'id': q.id,
@@ -327,14 +346,13 @@ def favorite():
             db.session.add(new_favorite)
             db.session.commit()
             print("add")
-            return jsonify({"code": 200, "message": 'Content has been added to your favorites'})
 
+            return jsonify({"code": 200, "message": 'Content has been added to your favorites'})
         elif existing_favorite.is_favorited == False:
             existing_favorite.is_favorited = True
             db.session.commit()
             print("add")
             return jsonify({"code": 200, "message": 'Content has been added to your favorites'})
-
         else: # 如果已经收藏过则返回
             return jsonify({"code": 400, "message": 'You have already added this content to your favorites'})
 
@@ -347,94 +365,4 @@ def favorite():
         else: # 如果本来就未收藏过则返回
             return jsonify({"code": 400, "message": 'You have not favorited this content yet'})
 
-
-@question.route('/api/createteam', methods=['POST'])
-def create_team():
-    """创建组队"""
-    data = request.get_json() # 前端需要提供：{"title":xxx, “description”:“xxx", "total_members":“xxx", "expiration_date":“xxx"}
-    title = data.get('title') # 标题
-    description = data.get('description') # 描述
-    total_members = data.get('total_members') # 总人数
-    expiration_date = data.get('expiration_date')  # 截止日期
-
-    if not title or not description or not total_members:
-        return jsonify({"code": 404, "message": 'Missing necessary parameters'})
-
-    new_team = Team(
-        title = title,
-        description = description,
-        total_members = total_members,
-        expiration_date = expiration_date
-    )
-    db.session.add(new_team)
-    db.session.commit()
-
-    return jsonify({"code": 201, "message": 'The team is created successfully','team_id': new_team.id})
-
-@question.route('/api/jointeam', methods=['POST'])
-def join_team():
-    """响应组队"""
-    data = request.get_json() # 前端需要提供：{"email":xxx, “team_id”:“xxx"}
-    email = data.get('email')  # 用户的email，和前面代码方法保持一致，使用邮箱检索用户id
-    team_id = data.get('team_id')
-
-    # 检查用户是否存在
-    user = Users.query.filter_by(email = email).first()
-    if not user:
-        return jsonify({"code": 404, "message": 'User does not exist'})
-
-    # 检查组队是否存在
-    team = Team.query.get(team_id)
-    if not team:
-        return jsonify({"code": 404, "message": 'Team does not exist'})
-
-    # 组队已过期
-    if team.is_expired():
-        return jsonify({"code": 400, "message": 'The team has expired'})
-
-    # 组队已满
-    if team.current_members >= team.total_members:
-        return jsonify({"code": 400, "message": 'The team is full'})
-
-    # 检查用户是否已经加入组队
-    members = team.get_members()
-    if user.id in members:
-        return jsonify({"code": 400, "message": 'The user has joined the team'})
-
-    # 加入组队
-    team.add_member(user.id)
-    db.session.commit()
-
-    return jsonify({"code": 400, "message": 'Successfully joined the team', 'current_members': team.current_members})
-
-@question.route('/api/view_team', methods=['POST'])
-def view_team():
-    """查看组队信息"""
-    data = request.get_json() # 前端需要提供：{"team_id":xxx}
-    team_id = data.get('team_id')
-
-    team = Team.query.get(team_id)
-    if not team:
-        return jsonify({"code": 404, "message": 'Team does not exist'})
-
-    # 获取成员信息
-    member_ids = team.get_members()
-    members = []
-    for user_id in member_ids:
-        user = Users.query.get(user_id)
-        if user:
-            members.append({'user_id': user.id, 'username': user.username, 'email':user.email})
-
-    team_info = {
-        'id': team.id,
-        'title': team.title,
-        'description': team.description,
-        'total_members': team.total_members,
-        'current_members': team.current_members,
-        'expiration_date': team.expiration_date.strftime('%Y-%m-%d %H:%M:%S'),
-        'is_expired': team.is_expired(),
-        'members': members
-    }
-
-    return jsonify({"code": 200, 'team': team_info})
 
